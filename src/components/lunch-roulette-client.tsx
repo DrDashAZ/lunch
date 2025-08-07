@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { motion, AnimatePresence } from "framer-motion";
-import { UtensilsCrossed, Plus, Trash2, RotateCcw, ChefHat, Sparkles, Loader2, CalendarClock } from "lucide-react";
+import { UtensilsCrossed, Plus, Trash2, RotateCcw, ChefHat, Sparkles, Loader2, CalendarClock, History } from "lucide-react";
 
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { useToast } from "@/hooks/use-toast";
@@ -19,6 +19,8 @@ import { Switch } from "@/components/ui/switch";
 import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
 
 type Restaurant = {
   id: string;
@@ -91,6 +93,14 @@ export function LunchRouletteClient() {
     setRestaurants(restaurants.map((r) => ({ ...r, blacklisted: false })));
   }
 
+  function handleResetCooldown(id: string) {
+    setRestaurants(
+        restaurants.map((r) =>
+            r.id === id ? { ...r, lastSelectedDate: undefined } : r
+        )
+    );
+  }
+
   function handleGetSuggestion() {
     if (availableRestaurants.length < 2) {
       toast({
@@ -133,178 +143,192 @@ export function LunchRouletteClient() {
   }
 
   return (
-    <div className="w-full space-y-8">
-      <header className="text-center">
-        <UtensilsCrossed className="mx-auto h-12 w-12 text-primary" />
-        <h1 className="mt-4 text-4xl md:text-5xl font-bold font-headline">Lunch Roulette</h1>
-        <p className="mt-2 text-lg text-muted-foreground">Can't decide? Let fate pick your lunch.</p>
-      </header>
+    <TooltipProvider>
+        <div className="w-full space-y-8">
+        <header className="text-center">
+            <UtensilsCrossed className="mx-auto h-12 w-12 text-primary" />
+            <h1 className="mt-4 text-4xl md:text-5xl font-bold font-headline">Lunch Roulette</h1>
+            <p className="mt-2 text-lg text-muted-foreground">Can't decide? Let fate pick your lunch.</p>
+        </header>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Add a Restaurant</CardTitle>
-          <CardDescription>Build your list of potential lunch spots.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleAddRestaurant)} className="flex items-start gap-4">
-              <FormField
-                control={form.control}
-                name="restaurantName"
-                render={({ field }) => (
-                  <FormItem className="flex-grow">
-                    <FormControl>
-                      <Input placeholder="e.g., The Cozy Diner" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button type="submit" aria-label="Add restaurant">
-                <Plus className="mr-2 h-4 w-4" />
-                Add
-              </Button>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <div className="space-y-1">
-              <CardTitle>Your Restaurants</CardTitle>
-              <CardDescription>Manage your list here. Toggle to temporarily exclude a spot.</CardDescription>
-            </div>
-            {hasBlacklisted && (
-              <Button variant="ghost" size="sm" onClick={handleResetBlacklist}>
-                <RotateCcw className="mr-2 h-4 w-4" />
-                Reset
-              </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {restaurants.length > 0 ? (
-              <ul className="space-y-3">
-                <AnimatePresence>
-                  {restaurants.map((restaurant) => {
-                    const onCooldown = isRestaurantOnCooldown(restaurant);
-                    return (
-                      <motion.li
-                        key={restaurant.id}
-                        layout
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, x: -20 }}
-                        transition={{ duration: 0.2 }}
-                        className={`flex items-center gap-4 p-3 rounded-lg transition-colors ${restaurant.blacklisted || onCooldown ? 'bg-muted/50' : 'bg-background'}`}
-                      >
-                        <Switch
-                          id={`blacklist-${restaurant.id}`}
-                          checked={restaurant.blacklisted}
-                          onCheckedChange={() => handleToggleBlacklist(restaurant.id)}
-                          aria-label={`Exclude ${restaurant.name}`}
-                          disabled={onCooldown}
-                        />
-                        <div className="flex-grow">
-                            <Label htmlFor={`blacklist-${restaurant.id}`} className={`text-lg transition-all ${restaurant.blacklisted || onCooldown ? 'line-through text-muted-foreground' : ''}`}>
-                                {restaurant.name}
-                            </Label>
-                            {onCooldown && (
-                                <p className="text-xs text-muted-foreground">
-                                    On cooldown until {new Date(restaurant.lastSelectedDate! + cooldownPeriodInMs).toLocaleDateString()}
-                                </p>
-                            )}
-                        </div>
-                        <Button variant="ghost" size="icon" onClick={() => handleRemoveRestaurant(restaurant.id)} aria-label={`Remove ${restaurant.name}`}>
-                          <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-                        </Button>
-                      </motion.li>
-                    )
-                  })}
-                </AnimatePresence>
-              </ul>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
-                <p>Your restaurant list is empty.</p>
-                <p className="text-sm">Add some spots to get started!</p>
-              </div>
-            )}
-          </div>
-        </CardContent>
-        {restaurants.length > 0 && 
-            <CardFooter className="flex-col items-stretch gap-4 pt-4">
-                <Separator/>
-                 <Button size="lg" onClick={handleGetSuggestion} disabled={availableRestaurants.length < 2}>
-                    <Sparkles className="mr-2 h-5 w-5" />
-                    What's for Lunch?
+        <Card>
+            <CardHeader>
+            <CardTitle>Add a Restaurant</CardTitle>
+            <CardDescription>Build your list of potential lunch spots.</CardDescription>
+            </CardHeader>
+            <CardContent>
+            <Form {...form}>
+                <form onSubmit={form.handleSubmit(handleAddRestaurant)} className="flex items-start gap-4">
+                <FormField
+                    control={form.control}
+                    name="restaurantName"
+                    render={({ field }) => (
+                    <FormItem className="flex-grow">
+                        <FormControl>
+                        <Input placeholder="e.g., The Cozy Diner" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+                <Button type="submit" aria-label="Add restaurant">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add
                 </Button>
-                {availableRestaurants.length < 2 && (
-                    <p className="text-sm text-center text-muted-foreground">Add at least two active, available restaurants to play.</p>
-                )}
-            </CardFooter>
-        }
-      </Card>
-      
-      <Card>
-        <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-                <CalendarClock className="h-5 w-5"/>
-                Options
-            </CardTitle>
-            <CardDescription>Customize the behavior of the roulette.</CardDescription>
-        </CardHeader>
-        <CardContent>
-            <div className="flex items-center justify-between">
-                <Label htmlFor="cooldown-select">Cooldown Period</Label>
-                <Select
-                    value={String(cooldownWeeks)}
-                    onValueChange={(value) => setCooldownWeeks(Number(value))}
-                >
-                    <SelectTrigger className="w-[180px]" id="cooldown-select">
-                        <SelectValue placeholder="Select cooldown" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="1">1 Week</SelectItem>
-                        <SelectItem value="4">4 Weeks</SelectItem>
-                        <SelectItem value="12">12 Weeks</SelectItem>
-                        <SelectItem value="21">21 Weeks</SelectItem>
-                        <SelectItem value="52">1 Year</SelectItem>
-                        <SelectItem value="0">No Cooldown</SelectItem>
-                    </SelectContent>
-                </Select>
-            </div>
-            <p className="text-sm text-muted-foreground mt-2">A chosen restaurant will be unavailable for this long.</p>
-        </CardContent>
-      </Card>
+                </form>
+            </Form>
+            </CardContent>
+        </Card>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle className="font-headline text-2xl text-center">The Verdict Is In...</DialogTitle>
-          </DialogHeader>
-          <div className="min-h-[120px] flex items-center justify-center text-center">
-            {isLoading ? (
-              <div className="space-y-2">
-                <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-                <p className="text-muted-foreground">Spinning the wheel of fate...</p>
-              </div>
-            ) : (
-              suggestion && (
-                <div className="space-y-4 animate-in fade-in-50">
-                    <DialogDescription>Your delicious destiny is:</DialogDescription>
-                    <p className="text-3xl font-bold font-headline text-accent flex items-center justify-center gap-2">
-                        <ChefHat className="h-8 w-8" />
-                        {suggestion}
-                    </p>
+        <Card>
+            <CardHeader>
+            <div className="flex justify-between items-center">
+                <div className="space-y-1">
+                <CardTitle>Your Restaurants</CardTitle>
+                <CardDescription>Manage your list here. Toggle to temporarily exclude a spot.</CardDescription>
                 </div>
-              )
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
+                {hasBlacklisted && (
+                <Button variant="ghost" size="sm" onClick={handleResetBlacklist}>
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    Reset
+                </Button>
+                )}
+            </div>
+            </CardHeader>
+            <CardContent>
+            <div className="space-y-4">
+                {restaurants.length > 0 ? (
+                <ul className="space-y-3">
+                    <AnimatePresence>
+                    {restaurants.map((restaurant) => {
+                        const onCooldown = isRestaurantOnCooldown(restaurant);
+                        return (
+                        <motion.li
+                            key={restaurant.id}
+                            layout
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            transition={{ duration: 0.2 }}
+                            className={`flex items-center gap-4 p-3 rounded-lg transition-colors ${restaurant.blacklisted || onCooldown ? 'bg-muted/50' : 'bg-background'}`}
+                        >
+                            <Switch
+                            id={`blacklist-${restaurant.id}`}
+                            checked={restaurant.blacklisted}
+                            onCheckedChange={() => handleToggleBlacklist(restaurant.id)}
+                            aria-label={`Exclude ${restaurant.name}`}
+                            disabled={onCooldown}
+                            />
+                            <div className="flex-grow">
+                                <Label htmlFor={`blacklist-${restaurant.id}`} className={`text-lg transition-all ${restaurant.blacklisted || onCooldown ? 'line-through text-muted-foreground' : ''}`}>
+                                    {restaurant.name}
+                                </Label>
+                                {onCooldown && (
+                                    <div className="flex items-center gap-2">
+                                        <p className="text-xs text-muted-foreground">
+                                            On cooldown until {new Date(restaurant.lastSelectedDate! + cooldownPeriodInMs).toLocaleDateString()}
+                                        </p>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleResetCooldown(restaurant.id)}>
+                                                    <History className="h-3 w-3" />
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>Reset Cooldown</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </div>
+                                )}
+                            </div>
+                            <Button variant="ghost" size="icon" onClick={() => handleRemoveRestaurant(restaurant.id)} aria-label={`Remove ${restaurant.name}`}>
+                            <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                            </Button>
+                        </motion.li>
+                        )
+                    })}
+                    </AnimatePresence>
+                </ul>
+                ) : (
+                <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
+                    <p>Your restaurant list is empty.</p>
+                    <p className="text-sm">Add some spots to get started!</p>
+                </div>
+                )}
+            </div>
+            </CardContent>
+            {restaurants.length > 0 && 
+                <CardFooter className="flex-col items-stretch gap-4 pt-4">
+                    <Separator/>
+                    <Button size="lg" onClick={handleGetSuggestion} disabled={availableRestaurants.length < 2}>
+                        <Sparkles className="mr-2 h-5 w-5" />
+                        What's for Lunch?
+                    </Button>
+                    {availableRestaurants.length < 2 && (
+                        <p className="text-sm text-center text-muted-foreground">Add at least two active, available restaurants to play.</p>
+                    )}
+                </CardFooter>
+            }
+        </Card>
+        
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                    <CalendarClock className="h-5 w-5"/>
+                    Options
+                </CardTitle>
+                <CardDescription>Customize the behavior of the roulette.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="flex items-center justify-between">
+                    <Label htmlFor="cooldown-select">Cooldown Period</Label>
+                    <Select
+                        value={String(cooldownWeeks)}
+                        onValueChange={(value) => setCooldownWeeks(Number(value))}
+                    >
+                        <SelectTrigger className="w-[180px]" id="cooldown-select">
+                            <SelectValue placeholder="Select cooldown" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="1">1 Week</SelectItem>
+                            <SelectItem value="4">4 Weeks</SelectItem>
+                            <SelectItem value="12">12 Weeks</SelectItem>
+                            <SelectItem value="21">21 Weeks</SelectItem>
+                            <SelectItem value="52">1 Year</SelectItem>
+                            <SelectItem value="0">No Cooldown</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+                <p className="text-sm text-muted-foreground mt-2">A chosen restaurant will be unavailable for this long.</p>
+            </CardContent>
+        </Card>
+
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+                <DialogTitle className="font-headline text-2xl text-center">The Verdict Is In...</DialogTitle>
+            </DialogHeader>
+            <div className="min-h-[120px] flex items-center justify-center text-center">
+                {isLoading ? (
+                <div className="space-y-2">
+                    <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+                    <p className="text-muted-foreground">Spinning the wheel of fate...</p>
+                </div>
+                ) : (
+                suggestion && (
+                    <div className="space-y-4 animate-in fade-in-50">
+                        <DialogDescription>Your delicious destiny is:</DialogDescription>
+                        <p className="text-3xl font-bold font-headline text-accent flex items-center justify-center gap-2">
+                            <ChefHat className="h-8 w-8" />
+                            {suggestion}
+                        </p>
+                    </div>
+                )
+                )}
+            </div>
+            </DialogContent>
+        </Dialog>
+        </div>
+    </TooltipProvider>
   );
 }
