@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { motion, AnimatePresence } from "framer-motion";
-import { UtensilsCrossed, Plus, Trash2, RotateCcw, ChefHat, Sparkles, Loader2 } from "lucide-react";
+import { UtensilsCrossed, Plus, Trash2, RotateCcw, ChefHat, Sparkles, Loader2, CalendarClock } from "lucide-react";
 
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { useToast } from "@/hooks/use-toast";
@@ -18,7 +18,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Badge } from "./ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type Restaurant = {
   id: string;
@@ -31,10 +31,11 @@ const formSchema = z.object({
   restaurantName: z.string().min(1, "Please enter a restaurant name.").max(50, "Name is too long."),
 });
 
-const TWENTY_ONE_WEEKS_IN_MS = 21 * 7 * 24 * 60 * 60 * 1000;
+const WEEKS_TO_MS = (weeks: number) => weeks * 7 * 24 * 60 * 60 * 1000;
 
 export function LunchRouletteClient() {
   const [restaurants, setRestaurants] = useLocalStorage<Restaurant[]>("restaurants", []);
+  const [cooldownWeeks, setCooldownWeeks] = useLocalStorage<number>("cooldownWeeks", 21);
   const [suggestion, setSuggestion] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -52,13 +53,15 @@ export function LunchRouletteClient() {
     },
   });
 
+  const cooldownPeriodInMs = useMemo(() => WEEKS_TO_MS(cooldownWeeks), [cooldownWeeks]);
+
   const availableRestaurants = useMemo(() => {
     const now = Date.now();
     return restaurants.filter(r => 
         !r.blacklisted &&
-        (!r.lastSelectedDate || (now - r.lastSelectedDate > TWENTY_ONE_WEEKS_IN_MS))
+        (!r.lastSelectedDate || (now - r.lastSelectedDate > cooldownPeriodInMs))
     );
-  }, [restaurants]);
+  }, [restaurants, cooldownPeriodInMs]);
 
   const hasBlacklisted = useMemo(() => restaurants.some(r => r.blacklisted), [restaurants]);
 
@@ -122,7 +125,7 @@ export function LunchRouletteClient() {
   const isRestaurantOnCooldown = (restaurant: Restaurant) => {
     if (!restaurant.lastSelectedDate) return false;
     const now = Date.now();
-    return (now - restaurant.lastSelectedDate) < TWENTY_ONE_WEEKS_IN_MS;
+    return (now - restaurant.lastSelectedDate) < cooldownPeriodInMs;
   };
   
   if (!isClient) {
@@ -211,7 +214,7 @@ export function LunchRouletteClient() {
                             </Label>
                             {onCooldown && (
                                 <p className="text-xs text-muted-foreground">
-                                    On cooldown until {new Date(restaurant.lastSelectedDate! + TWENTY_ONE_WEEKS_IN_MS).toLocaleDateString()}
+                                    On cooldown until {new Date(restaurant.lastSelectedDate! + cooldownPeriodInMs).toLocaleDateString()}
                                 </p>
                             )}
                         </div>
@@ -245,6 +248,38 @@ export function LunchRouletteClient() {
         }
       </Card>
       
+      <Card>
+        <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+                <CalendarClock className="h-5 w-5"/>
+                Options
+            </CardTitle>
+            <CardDescription>Customize the behavior of the roulette.</CardDescription>
+        </CardHeader>
+        <CardContent>
+            <div className="flex items-center justify-between">
+                <Label htmlFor="cooldown-select">Cooldown Period</Label>
+                <Select
+                    value={String(cooldownWeeks)}
+                    onValueChange={(value) => setCooldownWeeks(Number(value))}
+                >
+                    <SelectTrigger className="w-[180px]" id="cooldown-select">
+                        <SelectValue placeholder="Select cooldown" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="1">1 Week</SelectItem>
+                        <SelectItem value="4">4 Weeks</SelectItem>
+                        <SelectItem value="12">12 Weeks</SelectItem>
+                        <SelectItem value="21">21 Weeks</SelectItem>
+                        <SelectItem value="52">1 Year</SelectItem>
+                        <SelectItem value="0">No Cooldown</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+            <p className="text-sm text-muted-foreground mt-2">A chosen restaurant will be unavailable for this long.</p>
+        </CardContent>
+      </Card>
+
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
