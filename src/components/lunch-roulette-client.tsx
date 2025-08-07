@@ -1,13 +1,12 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { motion, AnimatePresence } from "framer-motion";
 import { UtensilsCrossed, Plus, Trash2, RotateCcw, ChefHat, Sparkles, Loader2 } from "lucide-react";
 
-import { suggestRestaurant } from "@/ai/flows/suggest-restaurant";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { useToast } from "@/hooks/use-toast";
 
@@ -36,7 +35,12 @@ export function LunchRouletteClient() {
   const [suggestion, setSuggestion] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [isClient, setIsClient] = useState(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -74,7 +78,7 @@ export function LunchRouletteClient() {
     setRestaurants(restaurants.map((r) => ({ ...r, blacklisted: false })));
   }
 
-  async function handleGetSuggestion() {
+  function handleGetSuggestion() {
     if (activeRestaurants.length < 2) {
       toast({
         variant: "destructive",
@@ -88,20 +92,17 @@ export function LunchRouletteClient() {
     setIsLoading(true);
     setSuggestion(null);
 
-    try {
-      const result = await suggestRestaurant({ restaurants: activeRestaurants.map(r => r.name) });
-      setSuggestion(result.suggestedRestaurant);
-    } catch (error) {
-      console.error("AI suggestion failed:", error);
-      toast({
-        variant: "destructive",
-        title: "Uh oh! Something went wrong.",
-        description: "The AI chef is busy. Please try again later.",
-      });
-      setDialogOpen(false);
-    } finally {
-      setIsLoading(false);
-    }
+    // Use a timeout to create a sense of anticipation
+    setTimeout(() => {
+        const randomIndex = Math.floor(Math.random() * activeRestaurants.length);
+        const randomRestaurant = activeRestaurants[randomIndex];
+        setSuggestion(randomRestaurant.name);
+        setIsLoading(false);
+    }, 1500);
+  }
+
+  if (!isClient) {
+    return null;
   }
 
   return (
@@ -109,7 +110,7 @@ export function LunchRouletteClient() {
       <header className="text-center">
         <UtensilsCrossed className="mx-auto h-12 w-12 text-primary" />
         <h1 className="mt-4 text-4xl md:text-5xl font-bold font-headline">Lunch Roulette</h1>
-        <p className="mt-2 text-lg text-muted-foreground">Can't decide? Let fate (and AI) pick your lunch.</p>
+        <p className="mt-2 text-lg text-muted-foreground">Can't decide? Let fate pick your lunch.</p>
       </header>
 
       <Card>
@@ -218,7 +219,7 @@ export function LunchRouletteClient() {
             {isLoading ? (
               <div className="space-y-2">
                 <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-                <p className="text-muted-foreground">Consulting the culinary cosmos...</p>
+                <p className="text-muted-foreground">Spinning the wheel of fate...</p>
               </div>
             ) : (
               suggestion && (
