@@ -24,11 +24,14 @@ type Restaurant = {
   id: string;
   name: string;
   blacklisted: boolean;
+  lastSelectedDate?: number;
 };
 
 const formSchema = z.object({
   restaurantName: z.string().min(1, "Please enter a restaurant name.").max(50, "Name is too long."),
 });
+
+const TWENTY_ONE_WEEKS_IN_MS = 21 * 7 * 24 * 60 * 60 * 1000;
 
 export function LunchRouletteClient() {
   const [restaurants, setRestaurants] = useLocalStorage<Restaurant[]>("restaurants", []);
@@ -49,7 +52,14 @@ export function LunchRouletteClient() {
     },
   });
 
-  const activeRestaurants = useMemo(() => restaurants.filter(r => !r.blacklisted), [restaurants]);
+  const availableRestaurants = useMemo(() => {
+    const now = Date.now();
+    return restaurants.filter(r => 
+        !r.blacklisted &&
+        (!r.lastSelectedDate || (now - r.lastSelectedDate > TWENTY_ONE_WEEKS_IN_MS))
+    );
+  }, [restaurants]);
+
   const hasBlacklisted = useMemo(() => restaurants.some(r => r.blacklisted), [restaurants]);
 
   function handleAddRestaurant(values: z.infer<typeof formSchema>) {
@@ -79,11 +89,11 @@ export function LunchRouletteClient() {
   }
 
   function handleGetSuggestion() {
-    if (activeRestaurants.length < 2) {
+    if (availableRestaurants.length < 2) {
       toast({
         variant: "destructive",
         title: "Not enough options!",
-        description: "Please add at least two active restaurants to get a suggestion.",
+        description: "Please add at least two active, available restaurants to get a suggestion.",
       });
       return;
     }
@@ -94,13 +104,27 @@ export function LunchRouletteClient() {
 
     // Use a timeout to create a sense of anticipation
     setTimeout(() => {
-        const randomIndex = Math.floor(Math.random() * activeRestaurants.length);
-        const randomRestaurant = activeRestaurants[randomIndex];
+        const randomIndex = Math.floor(Math.random() * availableRestaurants.length);
+        const randomRestaurant = availableRestaurants[randomIndex];
+        
         setSuggestion(randomRestaurant.name);
+        
+        setRestaurants(restaurants.map(r => 
+            r.id === randomRestaurant.id 
+            ? { ...r, lastSelectedDate: Date.now() } 
+            : r
+        ));
+
         setIsLoading(false);
     }, 1500);
   }
 
+  const isRestaurantOnCooldown = (restaurant: Restaurant) => {
+    if (!restaurant.lastSelectedDate) return false;
+    const now = Date.now();
+    return (now - restaurant.lastSelectedDate) < TWENTY_ONE_WEEKS_IN_MS;
+  };
+  
   if (!isClient) {
     return null;
   }
@@ -162,30 +186,41 @@ export function LunchRouletteClient() {
             {restaurants.length > 0 ? (
               <ul className="space-y-3">
                 <AnimatePresence>
-                  {restaurants.map((restaurant) => (
-                    <motion.li
-                      key={restaurant.id}
-                      layout
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, x: -20 }}
-                      transition={{ duration: 0.2 }}
-                      className={`flex items-center gap-4 p-3 rounded-lg transition-colors ${restaurant.blacklisted ? 'bg-muted/50' : 'bg-background'}`}
-                    >
-                      <Switch
-                        id={`blacklist-${restaurant.id}`}
-                        checked={restaurant.blacklisted}
-                        onCheckedChange={() => handleToggleBlacklist(restaurant.id)}
-                        aria-label={`Exclude ${restaurant.name}`}
-                      />
-                      <Label htmlFor={`blacklist-${restaurant.id}`} className={`flex-grow text-lg transition-all ${restaurant.blacklisted ? 'line-through text-muted-foreground' : ''}`}>
-                        {restaurant.name}
-                      </Label>
-                      <Button variant="ghost" size="icon" onClick={() => handleRemoveRestaurant(restaurant.id)} aria-label={`Remove ${restaurant.name}`}>
-                        <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-                      </Button>
-                    </motion.li>
-                  ))}
+                  {restaurants.map((restaurant) => {
+                    const onCooldown = isRestaurantOnCooldown(restaurant);
+                    return (
+                      <motion.li
+                        key={restaurant.id}
+                        layout
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        transition={{ duration: 0.2 }}
+                        className={`flex items-center gap-4 p-3 rounded-lg transition-colors ${restaurant.blacklisted || onCooldown ? 'bg-muted/50' : 'bg-background'}`}
+                      >
+                        <Switch
+                          id={`blacklist-${restaurant.id}`}
+                          checked={restaurant.blacklisted}
+                          onCheckedChange={() => handleToggleBlacklist(restaurant.id)}
+                          aria-label={`Exclude ${restaurant.name}`}
+                          disabled={onCooldown}
+                        />
+                        <div className="flex-grow">
+                            <Label htmlFor={`blacklist-${restaurant.id}`} className={`text-lg transition-all ${restaurant.blacklisted || onCooldown ? 'line-through text-muted-foreground' : ''}`}>
+                                {restaurant.name}
+                            </Label>
+                            {onCooldown && (
+                                <p className="text-xs text-muted-foreground">
+                                    On cooldown until {new Date(restaurant.lastSelectedDate! + TWENTY_ONE_WEEKS_IN_MS).toLocaleDateString()}
+                                </p>
+                            )}
+                        </div>
+                        <Button variant="ghost" size="icon" onClick={() => handleRemoveRestaurant(restaurant.id)} aria-label={`Remove ${restaurant.name}`}>
+                          <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                        </Button>
+                      </motion.li>
+                    )
+                  })}
                 </AnimatePresence>
               </ul>
             ) : (
@@ -199,12 +234,12 @@ export function LunchRouletteClient() {
         {restaurants.length > 0 && 
             <CardFooter className="flex-col items-stretch gap-4 pt-4">
                 <Separator/>
-                 <Button size="lg" onClick={handleGetSuggestion} disabled={activeRestaurants.length < 2}>
+                 <Button size="lg" onClick={handleGetSuggestion} disabled={availableRestaurants.length < 2}>
                     <Sparkles className="mr-2 h-5 w-5" />
                     What's for Lunch?
                 </Button>
-                {activeRestaurants.length < 2 && (
-                    <p className="text-sm text-center text-muted-foreground">Add at least two active restaurants to play.</p>
+                {availableRestaurants.length < 2 && (
+                    <p className="text-sm text-center text-muted-foreground">Add at least two active, available restaurants to play.</p>
                 )}
             </CardFooter>
         }
