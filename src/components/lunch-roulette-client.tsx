@@ -37,7 +37,7 @@ const WEEKS_TO_MS = (weeks: number) => weeks * 7 * 24 * 60 * 60 * 1000;
 
 export function LunchRouletteClient() {
   const [restaurants, setRestaurants] = useLocalStorage<Restaurant[]>("restaurants", []);
-  const [cooldownWeeks, setCooldownWeeks] = useLocalStorage<number>("cooldownWeeks", 21);
+  const [cooldownWeeks, setCooldownWeeks] = useLocalStorage<number>("cooldownWeeks", 2);
   const [suggestion, setSuggestion] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -291,11 +291,9 @@ export function LunchRouletteClient() {
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="1">1 Week</SelectItem>
+                            <SelectItem value="2">2 Weeks</SelectItem>
+                            <SelectItem value="3">3 Weeks</SelectItem>
                             <SelectItem value="4">4 Weeks</SelectItem>
-                            <SelectItem value="12">12 Weeks</SelectItem>
-                            <SelectItem value="21">21 Weeks</SelectItem>
-                            <SelectItem value="52">1 Year</SelectItem>
-                            <SelectItem value="0">No Cooldown</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
