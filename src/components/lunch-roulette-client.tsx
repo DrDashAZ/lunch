@@ -153,8 +153,18 @@ export function LunchRouletteClient() {
 
         <Card>
             <CardHeader>
-            <CardTitle>Add a Restaurant</CardTitle>
-            <CardDescription>Build your list of potential lunch spots.</CardDescription>
+                <CardTitle>Add a Restaurant</CardTitle>
+                <CardDescription>
+                    Build your list of potential lunch spots available on{" "}
+                    <a
+                        href="https://www.doordash.com/home"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-medium text-primary underline underline-offset-4"
+                    >
+                        DoorDash
+                    </a>
+                </CardDescription>
             </CardHeader>
             <CardContent>
             <Form {...form}>
