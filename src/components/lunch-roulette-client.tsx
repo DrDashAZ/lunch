@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { motion, AnimatePresence } from "framer-motion";
-import { UtensilsCrossed, Plus, Trash2, RotateCcw, ChefHat, Sparkles, Loader2, CalendarClock, History } from "lucide-react";
+import { UtensilsCrossed, Plus, Trash2, RotateCcw, ChefHat, Sparkles, Loader2, CalendarClock, History, Lock, Key } from "lucide-react";
 
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { useToast } from "@/hooks/use-toast";
@@ -34,10 +34,13 @@ const formSchema = z.object({
 });
 
 const WEEKS_TO_MS = (weeks: number) => weeks * 7 * 24 * 60 * 60 * 1000;
+const SECRET_CODE = "LizRulz!";
 
 export function LunchRouletteClient() {
   const [restaurants, setRestaurants] = useLocalStorage<Restaurant[]>("restaurants", []);
   const [cooldownWeeks, setCooldownWeeks] = useLocalStorage<number>("cooldownWeeks", 2);
+  const [isActivated, setIsActivated] = useLocalStorage<boolean>("isActivated", false);
+  const [activationAttempt, setActivationAttempt] = useState("");
   const [suggestion, setSuggestion] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -101,7 +104,32 @@ export function LunchRouletteClient() {
     );
   }
 
+  function handleActivation() {
+      if (activationAttempt === SECRET_CODE) {
+          setIsActivated(true);
+          toast({
+              title: "Activated!",
+              description: "You can now get lunch suggestions.",
+          });
+      } else {
+          toast({
+              variant: "destructive",
+              title: "Incorrect Code",
+              description: "The secret code is not correct. Please try again.",
+          });
+      }
+  }
+
   function handleGetSuggestion() {
+    if (!isActivated) {
+        toast({
+            variant: "destructive",
+            title: "Not Activated",
+            description: "Please enter the secret code to activate the roulette.",
+        });
+        return;
+    }
+    
     if (availableRestaurants.length < 2) {
       toast({
         variant: "destructive",
@@ -270,16 +298,61 @@ export function LunchRouletteClient() {
             {restaurants.length > 0 && 
                 <CardFooter className="flex-col items-stretch gap-4 pt-4">
                     <Separator/>
-                    <Button size="lg" onClick={handleGetSuggestion} disabled={availableRestaurants.length < 2}>
-                        <Sparkles className="mr-2 h-5 w-5" />
-                        What's for Lunch?
-                    </Button>
-                    {availableRestaurants.length < 2 && (
-                        <p className="text-sm text-center text-muted-foreground">Add at least two active, available restaurants to play.</p>
-                    )}
+                     {isActivated ? (
+                        <>
+                            <Button size="lg" onClick={handleGetSuggestion} disabled={availableRestaurants.length < 2}>
+                                <Sparkles className="mr-2 h-5 w-5" />
+                                What's for Lunch?
+                            </Button>
+                            {availableRestaurants.length < 2 && (
+                                <p className="text-sm text-center text-muted-foreground">Add at least two active, available restaurants to play.</p>
+                            )}
+                        </>
+                     ) : (
+                        <div className="text-center text-muted-foreground p-4 border border-dashed rounded-lg space-y-2">
+                           <Lock className="mx-auto h-6 w-6" />
+                           <p>The roulette is locked. Enter the secret code to activate.</p>
+                        </div>
+                     )}
                 </CardFooter>
             }
         </Card>
+
+        <AnimatePresence>
+        {!isActivated && (
+            <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+            >
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Key className="h-5 w-5" />
+                            Activation
+                        </CardTitle>
+                        <CardDescription>Enter the secret code to use the lunch roulette.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex items-start gap-4">
+                            <div className="flex-grow">
+                                <Input
+                                    type="password"
+                                    placeholder="Secret code"
+                                    value={activationAttempt}
+                                    onChange={(e) => setActivationAttempt(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleActivation()}
+                                />
+                            </div>
+                            <Button onClick={handleActivation}>
+                                Activate
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+            </motion.div>
+        )}
+        </AnimatePresence>
         
         <Card>
             <CardHeader>
