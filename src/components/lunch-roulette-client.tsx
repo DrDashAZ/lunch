@@ -261,7 +261,7 @@ export function LunchRouletteClient() {
                                 <Label htmlFor={`blacklist-${restaurant.id}`} className={`text-lg transition-all ${restaurant.blacklisted || onCooldown ? 'line-through text-muted-foreground' : ''}`}>
                                     {restaurant.name}
                                 </Label>
-                                {onCooldown && (
+                                {onCooldown && isActivated && (
                                     <div className="flex items-center gap-2">
                                         <p className="text-xs text-muted-foreground">
                                             On cooldown until {new Date(restaurant.lastSelectedDate! + cooldownPeriodInMs).toLocaleDateString()}
